@@ -12,6 +12,7 @@ pub struct Config {
     pub max_transaction_per_coin: i64,
     pub coins: Vec<Coin>,
     pub mandala: MandalaConfig,
+    pub kraken: KrakenConfig,
     pub database_url: String,
 }
 
@@ -25,6 +26,16 @@ pub struct Coin {
 #[derive(Deserialize)]
 pub struct MandalaConfig {
     pub enabled: bool,
+    pub api_key: String,
+    pub api_secret: String,
+}
+
+
+#[derive(Deserialize)]
+pub struct KrakenConfig {
+    pub enabled: bool,
+    pub rest_url: String,
+    pub wss_url: String,
     pub api_key: String,
     pub api_secret: String,
 }

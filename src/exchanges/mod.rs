@@ -11,7 +11,7 @@ use crate::crypto::treasury::{Treasured, TransactionIntent, ExecutableTransactio
 use tokio::sync::mpsc::UnboundedSender;
 
 pub mod mandala;
-
+pub mod kraken;
 
 #[async_trait]
 pub trait Exchange: Treasured {

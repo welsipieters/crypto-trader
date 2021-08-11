@@ -15,6 +15,7 @@ use crate::bot::Poppy;
 use crate::database::DatabaseManager;
 use crate::exchanges::mandala::Mandala;
 use crate::utils::config::Config;
+use crate::exchanges::kraken::Kraken;
 
 mod bot;
 mod crypto;
@@ -34,10 +35,11 @@ async fn main() {
     info!("Starting Poppy...");
 
     let mut mandala = Mandala::new();
-
+    let mut kraken = Kraken::new();
 
     let mut poppy = Poppy::new();
     poppy.register_exchange(Box::new(mandala)).await;
+    poppy.register_exchange(Box::new(kraken)).await;
 
     poppy.run().await;
 }
