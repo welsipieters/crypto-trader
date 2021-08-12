@@ -38,7 +38,7 @@ async fn main() {
     let mut kraken = Kraken::new();
 
     let mut poppy = Poppy::new();
-    poppy.register_exchange(Box::new(mandala)).await;
+    // poppy.register_exchange(Box::new(mandala)).await;
     poppy.register_exchange(Box::new(kraken)).await;
 
     poppy.run().await;

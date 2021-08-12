@@ -3,7 +3,9 @@ name = "poppy"
 version = "0.1.0"
 authors = ["Wesley Peeters <wesleyp@hey.com>"]
 edition = "2018"
-
+#build = "stable-aarch64-apple-darwin"
+host = ["stable-aarch64-apple-darwin"]
+#target = ["aarch64-apple-darwin"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]

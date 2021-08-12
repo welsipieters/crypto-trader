@@ -160,7 +160,7 @@ impl Poppy {
     }
 
     pub async fn run(&mut self) {
-        info!("Started.");
+        info!("[Poppy]: Started.");
 
         let tick_time = Duration::from_millis(1000); // Tick 1 times per 2 seconds.
         let mut next_tick = Instant::now();

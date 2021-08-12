@@ -1,3 +1,4 @@
+use async_trait::async_trait;
 use crate::exchanges::kraken::client::{Client, MessageType};
 use crate::CONFIG;
 use crate::exchanges::kraken::bookkeeper::Bookkeeper;
@@ -13,6 +14,9 @@ use crate::bot::trading::Tick;
 use anyhow::Result;
 use crate::schema::transactions::dsl::symbol;
 use itertools::Itertools;
+use serde::Deserialize;
+use serde_json::Value;
+
 
 mod client;
 mod bookkeeper;
@@ -47,16 +51,16 @@ impl Kraken {
 
         match result {
             Ok(response) => {
-                let response: KrakenResult<BTreeMap<String, String>> = response.json().expect("Error deserializing json");
+                let response: KrakenResult<HashMap<String, String>> = response.json().await.expect("Error deserializing json");
 
-                let balances = response.result.iter().map(|(symbol, balance)| {
+                let balances = response.result.iter().map(|(symbol2, balance)| {
                     let balance = Balance::new(
-                        symbol,
+                        symbol2,
                         balance.parse().expect("can't parse balance"),
                         0.0
                     );
 
-                    (symbol.clone(), balance)
+                    (symbol2.clone(), balance)
                 }).collect::<HashMap<_, _>>();
 
                 self.balances.reload(balances);
@@ -70,7 +74,10 @@ impl Kraken {
     pub async fn get_tradable_pairs(&self) -> Result<HashMap<String, Asset>> {
         match self.client.send(MessageType::Public, "/0/public/AssetPairs", BTreeMap::new()).await {
             Ok(response) => {
-                let result: KrakenResult<HashMap<String, Asset>> = response.json().expect("Cant get pairs");
+                // let value: Value = response.json().await.unwrap();
+                // dbg!(value);
+                // panic!();
+                let result: KrakenResult<HashMap<String, Asset>> = response.json().await.expect("Cant get pairs");
 
                 Ok(result.result)
             }
@@ -83,13 +90,20 @@ impl Kraken {
     }
 }
 
+#[derive(Eq, PartialEq, Debug, Deserialize)]
 pub struct Asset {
     altname: String,
-    wsname: String,
+    wsname: Option<String>,
     base: String,
     quote: String
 }
 
+impl Asset {
+
+}
+
+
+#[async_trait]
 impl Exchange for Kraken {
     async fn boot(&mut self, intent_sender: UnboundedSender<TransactionIntent>) {
         info!("[Kraken][Core]: Booting");
@@ -101,24 +115,26 @@ impl Exchange for Kraken {
         let mut tradable = vec![];
 
         for (key, asset) in pairs {
-            info!("[Kraken][Core]: Checking pair {} for tradability", asset.wsname);
+            if (asset.wsname.is_none()) { continue; }
+            info!("[Kraken][Core]: Checking pair {} for tradability", asset.wsname.clone().expect("no wsname"));
 
             let coins = CONFIG.coins.clone();
 
             let matching = coins.into_iter().find(|c| {
+                // dbg!(&c, &asset);
                 c.symbol == asset.base && asset.quote == CONFIG.quote_currency
             });
 
             if matching.is_none() { continue; }
 
             if tradable.contains(&asset) {
-                error!("[Kraken][Core]: Tried to register {} more then once.", asset.wsname);
+                error!("[Kraken][Core]: Tried to register {} more then once.", asset.wsname.clone().expect("no wsname"));
 
                 continue;
             }
 
-            info!("[Kraken][Core]: Identified pair {} as tradable", asset.wsname);
-
+            info!("[Kraken][Core]: Identified pair {} as tradable", asset.wsname.clone().expect("no wsname"));
+            tradable.push(asset);
         }
 
         self.bookkeeper.boot(&tradable).await;
@@ -136,7 +152,7 @@ impl Exchange for Kraken {
         let mut tick = Tick::Silent;
 
         if debug {
-            info!("--- [ROUND INFO] ---");
+            info!("[Kraken][Core]: --- [ROUND INFO] ---");
             tick = Tick::Output;
         }
 
@@ -164,6 +180,7 @@ impl Exchange for Kraken {
     }
 }
 
+#[derive(Deserialize)]
 struct KrakenResult<T> {
     error: Vec<String>,
     result: T

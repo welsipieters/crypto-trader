@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::fs::File;
-use std::io::BufReader;
+use std::io::{BufReader, Error};
 
 use std::env;
 
@@ -46,13 +46,21 @@ impl Config {
         let path = env::current_dir().unwrap();
         let path = path.as_os_str().to_str().unwrap();
         let file_path = format!("{}/config.json", path.to_string());
+        dbg!(&file_path);
 
-        if let Ok(file) = File::open(file_path) {
-            let reader = BufReader::new(file);
-            if let Ok(config) = serde_json::from_reader(reader) {
-                return config;
+        match File::open(file_path) {
+            Ok(file) => {
+                let reader = BufReader::new(file);
+                match serde_json::from_reader(reader) {
+                    Ok(config) => return config,
+                    Err(e) =>{ dbg!(e); panic!()}
+                }
             }
-        }
+            Err(err) => {
+                panic!(err)
+            }
+        };
+
 
         panic!("Couldn't read config file.");
     }

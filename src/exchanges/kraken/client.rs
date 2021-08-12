@@ -2,7 +2,7 @@ use chrono::{DateTime, Utc};
 use minreq::Method;
 use std::collections::BTreeMap;
 use sha2::{Sha256, Digest};
-use hmac::{Hmac, NewMac};
+use hmac::{Hmac, NewMac, Mac};
 use reqwest::header::{HeaderMap, HeaderValue};
 use reqwest::{Response, Error};
 
@@ -32,7 +32,7 @@ impl Client {
         endpoint: T,
         mut params: BTreeMap<String, String>
     ) -> Result<Response, Error> {
-        let mut uri  = format!("{}{}", crate::CONFIG.kraken.endpoint, endpoint.into());
+        let mut uri  = format!("{}{}", crate::CONFIG.kraken.rest_url, endpoint.into());
         match message_type {
             MessageType::Public => {
                 if !params.is_empty() {
@@ -47,7 +47,7 @@ impl Client {
 
                 let body_string = self.create_param_string(params);
                 let sig = self.create_signature(
-                    uri,
+                    uri.clone(),
                     nonce,
                     body_string.to_owned()
                 );
@@ -78,7 +78,7 @@ impl Client {
         let mut headers = HeaderMap::new();
 
         headers.insert("API-Key", HeaderValue::from_str(crate::CONFIG.kraken.api_key.as_str()).expect("Error creating header value."));
-        header.insert("API-Sign", HeaderValue::from_str(&signature.as_str()));
+        headers.insert("API-Sign", HeaderValue::from_str(&signature.as_str()).expect("no header"));
 
         headers
     }
@@ -91,10 +91,10 @@ impl Client {
     ) -> String {
         let digest = Sha256::digest(format!("{}{}", nonce, body).as_bytes());
         let decoded_private_key = base64::decode(&self.api_secret).expect("Oops, you didnt give a secret for the Kraken client.");
-        let mac = HmacSha256::new_varkey(&decoded_private_key).expect("Error creating HMAC instance.");
+        let mut mac = HmacSha256::new_varkey(&decoded_private_key).expect("Error creating HMAC instance.");
 
         let mut cheese = path.into_bytes();
-        cheese.append(&mut digest.to_vec()). // cheese is the hmac data.
+        cheese.append(&mut digest.to_vec()); // cheese is the hmac data.
 
         mac.update(&cheese);
 

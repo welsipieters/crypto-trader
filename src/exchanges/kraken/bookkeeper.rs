@@ -33,19 +33,20 @@ impl Bookkeeper {
         info!("[Kraken][Bookkeeper]: Booting...");
 
         for coin in assets.iter() {
-            let book = Arc::new(RwLock::new(OrderBook::new(&coin.symbol)));
-            let bookie = Bookie::new(&coin.symbol, Arc::clone(&book));
+            let book = Arc::new(RwLock::new(OrderBook::new(&coin.wsname.clone().expect("no wsname"))));
+            let bookie = Bookie::new(&coin.wsname.clone().expect("no wsname"), Arc::clone(&book));
 
-            self.bookies.insert(coin.symbol.clone(), bookie);
+            self.bookies.insert(coin.wsname.clone().expect("no wsname").clone(), bookie);
         }
 
-        self.boot_websockets(assets)
+        self.boot_websockets(assets).await;
     }
 
     async fn boot_websockets(&self, coins: &Vec<Asset>) {
         let quote_currency = &CONFIG.quote_currency;
-
-        let pairs: Vec<_> = coins.into_iter().map(|coin| { coin.wsname }).collect();
+        // dbg!(coins);
+        // panic!();
+        let pairs: Vec<_> = coins.into_iter().map(|coin| { coin.wsname.clone().expect("no wsname").clone() }).collect();
         let senders: HashMap<_, _> = self.bookies.iter().map(|(coin, bookie)| (coin.clone(), bookie.get_sender())).collect();
 
         let (stream, _) = connect_async(
@@ -54,12 +55,12 @@ impl Bookkeeper {
 
         let (mut write, mut read) = stream.split();
 
+        dbg!(&pairs);
         let subscription_message = Subscription {
             event: "subscribe".to_string(),
             pair: pairs,
             subscription: SubObj {
                 depth: 500,
-                interval: 1,
                 name: "book".to_string(),
                 token: "xyz".to_string()
             }
@@ -70,25 +71,29 @@ impl Bookkeeper {
 
          // Handle the first message. This message is a snapshot. NOT an update.
 
-        if let Some(Ok(message)) = read.next().await {
-            if let Message::Text(message) = message {
-                // TODO: Handle snapshot.
-                dbg!(message);
-            }
-        } else {
-            panic!("[Kraken][Bookkeeper]: Websocket receive faulted.");
-        }
+        // if let Some(Ok(message)) = read.next().await {
+        //     if let Message::Text(message) = message {
+        //         // TODO: Handle snapshot.
+        //         dbg!(message);
+        //     }
+        // } else {
+        //     panic!("[Kraken][Bookkeeper]: Websocket receive faulted.");
+        // }
         
         tokio::spawn(async move {
             while let Some(Ok(message)) = read.next().await {
+                debug!("[Kraken][Bookkeeper]: received message over socket.");
+
                 match message {
-                    .. => debug!("[Kraken][Bookkeeper]: Received unknown."),
+
                     Message::Ping(_) => info!("[Kraken][Bookkeeper]: Received Ping"),
                     Message::Pong(_) => info!("[Kraken][Bookkeeper]: Received Pong"),
                     Message::Close(_) => info!("[Kraken][Bookkeeper]: Received Close"),
-                    Message::Text(_) => {
+                    Message::Text(msg) => {
+                        dbg!(msg);
                         // TODO: handle update
-                    }
+                    },
+                    _ => debug!("[Kraken][Bookkeeper]: Received unknown."),
                 }
             }
         });
@@ -131,7 +136,7 @@ impl Bookie {
             can_process.notified().await;
 
             while let Some(msg) = receiver.recv().await {
-                dbg!(msg)
+                dbg!(msg);
             }
         });
     }
@@ -141,17 +146,16 @@ impl Bookie {
     }
 
 }
-#[derive(Clone, Copy, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 struct Subscription {
     event: String,
     pair: Vec<String>,
     subscription: SubObj
 }
 
-#[derive(Clone, Copy, Debug, Deserialize)]
+#[derive(Clone, Debug, Deserialize, Serialize)]
 struct SubObj {
     depth: i32,
-    interval: i32,
     name: String,
     token: String
 }
